@@ -1,0 +1,277 @@
+@import url("https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes clay-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --background: 34 47% 96%;
+    --foreground: 17 22% 20%;
+    --sidebar: 32 43% 93%;
+    --surface: 32 100% 97%;
+    --elevated: 30 100% 93%;
+    --border: 30 48% 89%;
+    --muted: 30 42% 91%;
+    --muted-foreground: 22 10% 50%;
+    --primary: 11 100% 76%;
+    --primary-foreground: 17 22% 20%;
+    --success: 100 48% 77%;
+    --success-foreground: 103 30% 31%;
+    --warning: 35 100% 81%;
+    --warning-foreground: 31 52% 34%;
+    --danger: 354 70% 80%;
+    --danger-foreground: 352 39% 38%;
+    --shadow-clay:
+      inset 0 -6px 12px rgba(0, 0, 0, 0.06),
+      inset 0 6px 12px rgba(255, 255, 255, 0.7),
+      0 8px 24px rgba(0, 0, 0, 0.08),
+      0 2px 6px rgba(0, 0, 0, 0.04);
+    --shadow-clay-hover:
+      inset 0 -4px 10px rgba(0, 0, 0, 0.05),
+      inset 0 4px 10px rgba(255, 255, 255, 0.8),
+      0 12px 32px rgba(0, 0, 0, 0.1),
+      0 4px 8px rgba(0, 0, 0, 0.05);
+    --shadow-clay-press:
+      inset 0 4px 10px rgba(0, 0, 0, 0.1),
+      inset 0 -2px 6px rgba(255, 255, 255, 0.5);
+    --shadow-clay-inset:
+      inset 0 2px 6px rgba(0, 0, 0, 0.08),
+      inset 0 -1px 3px rgba(255, 255, 255, 0.6);
+  }
+
+  .dark {
+    color-scheme: dark;
+    --background: 260 11% 19%;
+    --foreground: 32 43% 93%;
+    --sidebar: 264 12% 22%;
+    --surface: 265 11% 24%;
+    --elevated: 266 11% 28%;
+    --border: 267 10% 29%;
+    --muted: 266 11% 28%;
+    --muted-foreground: 28 11% 69%;
+    --primary: 11 100% 76%;
+    --primary-foreground: 17 22% 20%;
+    --success: 100 38% 63%;
+    --success-foreground: 101 38% 84%;
+    --warning: 37 80% 69%;
+    --warning-foreground: 36 83% 86%;
+    --danger: 354 64% 72%;
+    --danger-foreground: 353 75% 90%;
+    --shadow-clay:
+      inset 0 -6px 12px rgba(15, 11, 20, 0.16),
+      inset 0 5px 10px rgba(255, 255, 255, 0.06),
+      0 8px 24px rgba(15, 11, 20, 0.24),
+      0 2px 6px rgba(15, 11, 20, 0.16);
+    --shadow-clay-hover:
+      inset 0 -4px 10px rgba(15, 11, 20, 0.12),
+      inset 0 4px 10px rgba(255, 255, 255, 0.08),
+      0 12px 32px rgba(15, 11, 20, 0.3),
+      0 4px 8px rgba(15, 11, 20, 0.18);
+    --shadow-clay-press:
+      inset 0 4px 10px rgba(15, 11, 20, 0.2),
+      inset 0 -2px 6px rgba(255, 255, 255, 0.06);
+    --shadow-clay-inset:
+      inset 0 2px 6px rgba(15, 11, 20, 0.2),
+      inset 0 -1px 3px rgba(255, 255, 255, 0.06);
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: "Nunito", "Varela Round", system-ui, sans-serif;
+    font-weight: 500;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+
+    .card:hover,
+    .card:active,
+    .nav-item:hover,
+    button:hover,
+    button:active {
+      transform: none !important;
+    }
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-clay-lg border-2 bg-surface shadow-clay;
+    animation: clay-rise 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    transition:
+      transform 150ms ease-out,
+      box-shadow 150ms ease-out,
+      background-color 150ms ease-out;
+  }
+
+  .nav-item {
+    @apply flex items-center gap-2.5 rounded-2xl px-3 py-2 text-sm font-bold text-muted-foreground transition-all duration-150;
+  }
+
+  .nav-item-active {
+    @apply bg-primary text-primary-foreground shadow-clay;
+  }
+
+  .input {
+    @apply flex h-10 w-full rounded-2xl border-2 bg-surface px-4 py-2 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground;
+    box-shadow: var(--shadow-clay-inset);
+  }
+
+  .input:focus {
+    border-color: hsl(var(--primary));
+    box-shadow:
+      var(--shadow-clay-inset),
+      0 0 0 3px hsl(var(--primary) / 0.28);
+  }
+}
+
+.card:hover {
+  background-color: hsl(var(--surface));
+  box-shadow: var(--shadow-clay-hover);
+  transform: translateY(-2px);
+}
+
+.card:active {
+  box-shadow: var(--shadow-clay-press);
+  transform: translateY(0);
+}
+
+.nav-item-active {
+  box-shadow:
+    var(--shadow-clay),
+    inset 0 2px 4px rgba(255, 255, 255, 0.5);
+}
+
+.nav-item:hover:not(.nav-item-active) {
+  background-color: hsl(var(--surface));
+  box-shadow: var(--shadow-clay);
+  transform: translateY(-1px);
+}
+
+button:not(.rounded-full) {
+  border-radius: 16px;
+  transition:
+    transform 150ms ease-out,
+    box-shadow 150ms ease-out,
+    background-color 150ms ease-out;
+}
+
+button:hover:not(:disabled):not(.nav-item) {
+  box-shadow: var(--shadow-clay-hover);
+  transform: translateY(-1px);
+}
+
+button:active:not(:disabled) {
+  box-shadow: var(--shadow-clay-press);
+  transform: translateY(0);
+}
+
+.app-header {
+  background: hsl(var(--sidebar));
+  box-shadow: inset 0 -5px 10px rgba(0, 0, 0, 0.035);
+}
+
+.badge-clay {
+  border-radius: 9999px;
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.45);
+  font-weight: 700;
+}
+
+.progress-clay {
+  height: 9px;
+  border-radius: 9999px;
+  background: hsl(var(--elevated));
+  box-shadow: var(--shadow-clay-inset);
+}
+
+.progress-clay-fill {
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #ffad99 0%, #ff8e76 100%);
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.45),
+    0 1px 5px rgba(220, 111, 87, 0.22);
+}
+
+.sidebar-project-dot {
+  box-shadow: 0 0 8px color-mix(in srgb, currentColor 55%, transparent);
+}
+
+.dialog-backdrop {
+  background: rgba(61, 46, 40, 0.4);
+}
+
+.dialog-clay {
+  border: 2px solid hsl(var(--border));
+  border-radius: 32px;
+  box-shadow: var(--shadow-clay-hover);
+}
+
+.dialog-scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.dialog-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+.toast-clay {
+  border-radius: 20px !important;
+  box-shadow: var(--shadow-clay) !important;
+}
+
+:where(button, a, [role="button"]):focus-visible {
+  outline: 2px solid hsl(var(--primary) / 0.85);
+  outline-offset: 3px;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border: 2px solid hsl(var(--background));
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.4);
+}
