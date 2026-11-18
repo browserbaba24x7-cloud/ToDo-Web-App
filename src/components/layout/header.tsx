@@ -74,15 +74,15 @@ export const Header = ({
   };
 
   return (
-    <header className="app-header flex h-16 items-center gap-3 border-b-2 px-4 md:px-6">
+    <header className="app-header flex h-16 min-w-0 items-center gap-2 border-b-2 px-3 sm:gap-3 sm:px-4 md:px-6">
       <button
-        className="md:hidden rounded p-1.5 hover:bg-elevated"
+        className="shrink-0 rounded p-1.5 hover:bg-elevated md:hidden"
         onClick={() => setMobileNavOpen(true)}
       >
         <Menu className="h-5 w-5" />
       </button>
-      <h1 className="text-[17px] font-semibold">{title}</h1>
-      <div className="ml-auto flex items-center gap-2">
+      <h1 className="min-w-0 truncate text-[17px] font-semibold">{title}</h1>
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         <div className="relative hidden sm:block">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -187,7 +187,7 @@ export const Header = ({
             </div>
           )}
         </div>
-        <Button size="sm" onClick={onOpenTaskModal}>
+        <Button size="sm" className="shrink-0" onClick={onOpenTaskModal}>
           <Plus className="h-3.5 w-3.5" /> New task
         </Button>
       </div>

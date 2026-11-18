@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 import {
@@ -7,6 +7,8 @@ import {
   X,
   Pause,
   Clock3,
+  Maximize2,
+  Minimize2,
   Pencil,
   PictureInPicture2,
   Play,
@@ -97,16 +99,38 @@ const FocusTimerCard = ({
   onPin: () => void;
 }) => {
   const totalSeconds = timer.durationMinutes * 60;
+  const cardRef = useRef<HTMLElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const progress = totalSeconds ? (secondsLeft / totalSeconds) * 100 : 0;
   const angle = `${progress * 3.6}deg`;
 
+  useEffect(() => {
+    const updateFullscreenState = () => {
+      setIsFullscreen(document.fullscreenElement === cardRef.current);
+    };
+    document.addEventListener("fullscreenchange", updateFullscreenState);
+    return () => document.removeEventListener("fullscreenchange", updateFullscreenState);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement === cardRef.current) {
+        await document.exitFullscreen();
+      } else {
+        await cardRef.current?.requestFullscreen();
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not open the full-screen timer.");
+    }
+  };
+
   return (
-    <article className="card flex min-h-[310px] flex-col p-5">
+    <article ref={cardRef} className="card focus-timer-card flex min-h-[310px] flex-col p-5">
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
           onClick={onEdit}
-          className="min-w-0 flex-1 truncate rounded text-left text-sm font-bold hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="focus-timer-name min-w-0 flex-1 truncate rounded text-left text-sm font-bold hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           aria-label={`Edit ${timer.name} name and duration`}
         >
           {timer.name}
@@ -132,15 +156,26 @@ const FocusTimerCard = ({
           </div>
         )}
         {!isEditing && (
-          <button
-            type="button"
-            onClick={onPin}
-            className={`rounded-full p-2 transition-colors ${isPinned ? "bg-primary/20 text-primary" : "text-muted-foreground hover:bg-elevated hover:text-foreground"}`}
-            aria-label={isPinned ? `Show ${timer.name} in floating window` : `Pin ${timer.name} on top`}
-            title={isPinned ? "Show floating timer" : "Keep timer on top"}
-          >
-            <PictureInPicture2 className="h-4 w-4" />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="rounded-full p-2 text-muted-foreground hover:bg-elevated hover:text-foreground"
+              aria-label={isFullscreen ? `Exit full screen for ${timer.name}` : `Expand ${timer.name} full screen`}
+              title={isFullscreen ? "Exit full screen" : "Full screen"}
+            >
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={onPin}
+              className={`rounded-full p-2 transition-colors ${isPinned ? "bg-primary/20 text-primary" : "text-muted-foreground hover:bg-elevated hover:text-foreground"}`}
+              aria-label={isPinned ? `Show ${timer.name} in floating window` : `Pin ${timer.name} on top`}
+              title={isPinned ? "Show floating timer" : "Keep timer on top"}
+            >
+              <PictureInPicture2 className="h-4 w-4" />
+            </button>
+          </div>
         )}
       </div>
 
@@ -148,7 +183,7 @@ const FocusTimerCard = ({
         <button
           type="button"
           onClick={onEdit}
-          className="grid h-48 w-48 place-items-center rounded-full p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="focus-timer-ring grid h-48 w-48 place-items-center rounded-full p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           style={{
             background: `conic-gradient(hsl(var(--primary)) 0deg ${angle}, hsl(var(--elevated)) ${angle} 360deg)`,
           }}
@@ -156,7 +191,7 @@ const FocusTimerCard = ({
         >
           <div className="grid h-full w-full place-items-center rounded-full bg-surface shadow-clay-inset">
             <p
-              className="font-mono text-[clamp(1.7rem,5vw,2.4rem)] font-bold tabular-nums tracking-tight"
+              className="focus-timer-time font-mono text-[clamp(1.7rem,5vw,2.4rem)] font-bold tabular-nums tracking-tight"
               role="timer"
               aria-label={`${formatTime(secondsLeft)} remaining`}
             >

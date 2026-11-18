@@ -122,7 +122,7 @@ export const AppShell = () => {
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveTaskId(undefined)}
     >
-      <div className="flex h-screen overflow-hidden bg-background">
+      <div className="flex h-screen w-full min-w-0 overflow-hidden bg-background">
         {/* Desktop sidebar */}
         {!isFocusPage && (
           <div className="hidden md:block">
@@ -137,13 +137,13 @@ export const AppShell = () => {
               className="fixed inset-0 z-40 bg-[#3D2E28]/40 backdrop-blur-sm md:hidden"
               onClick={() => setMobileNavOpen(false)}
             />
-            <div className="fixed inset-y-0 left-0 z-50 md:hidden animate-slide-in">
+            <div className="mobile-sidebar-enter fixed inset-y-0 left-0 z-50 md:hidden">
               <Sidebar onClose={() => setMobileNavOpen(false)} />
             </div>
           </>
         )}
 
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {!isFocusPage && <Header
             title={title}
             onSelectTask={(taskId) => {
@@ -155,8 +155,8 @@ export const AppShell = () => {
               setTaskModalOpen(true);
             }}
           />}
-          <main className="flex-1 overflow-y-auto">
-            <div className={isFocusPage ? "min-h-full" : "mx-auto max-w-7xl p-4 md:p-6 lg:p-8"}>
+          <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+            <div className={isFocusPage ? "min-h-full w-full" : "mx-auto w-full min-w-0 max-w-7xl p-3 sm:p-4 md:p-6 lg:p-8"}>
               <Outlet />
             </div>
           </main>

@@ -13,11 +13,11 @@ import { isToday, isPast } from "date-fns";
 import { useAuth } from "@/lib/auth/auth-context";
 
 const StatCard = ({ label, value, icon: Icon, accent }: any) => (
-  <div className="card p-5">
+  <div className="card min-w-0 p-3 min-[360px]:p-4 sm:p-5">
     <div className="flex items-center justify-between">
-      <span className="text-[12px] font-medium text-muted-foreground">{label}</span>
-      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 shadow-clay">
-        <Icon className={cn("h-5 w-5", accent)} />
+      <span className="min-w-0 text-[12px] font-medium text-muted-foreground">{label}</span>
+      <span className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 shadow-clay min-[360px]:h-10 min-[360px]:w-10">
+        <Icon className={cn("h-4 w-4 min-[360px]:h-5 min-[360px]:w-5", accent)} />
       </span>
     </div>
     <p className="mt-2 text-4xl font-extrabold tabular-nums">{value}</p>
@@ -54,7 +54,7 @@ export const DashboardPage = () => {
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-[26px] font-semibold tracking-tight">{greeting}, {accountName}</h2>
+          <h2 className="break-words text-2xl font-semibold tracking-tight sm:text-[26px]">{greeting}, {accountName}</h2>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
             {format(new Date(), "EEEE, MMMM d, yyyy")} · You have {pending} task{pending !== 1 ? "s" : ""} remaining
           </p>
@@ -68,7 +68,7 @@ export const DashboardPage = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total tasks" value={total} icon={ListTodo} accent="text-muted-foreground" />
         <StatCard label="Completed" value={completed} icon={CheckCircle2} accent="text-success-foreground" />
         <StatCard label="Pending" value={pending} icon={Clock} accent="text-primary" />
@@ -87,16 +87,16 @@ export const DashboardPage = () => {
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-3">
         {/* Today */}
-        <div className="lg:col-span-2">
+        <div className="min-w-0 lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-[15px] font-semibold">Today's tasks</h3>
             <Link to="/app/today" className="text-[12px] text-primary hover:underline">
               View all →
             </Link>
           </div>
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             {todaysTasks.length === 0 ? (
               <EmptyState
                 icon={CheckCircle2}
@@ -111,10 +111,10 @@ export const DashboardPage = () => {
         </div>
 
         {/* Sidebar column */}
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <div>
             <h3 className="mb-3 text-[15px] font-semibold">Upcoming deadlines</h3>
-            <div className="card divide-y">
+            <div className="card w-full min-w-0 divide-y">
               {upcoming.length === 0 ? (
                 <div className="p-4 text-[13px] text-muted-foreground">No upcoming deadlines.</div>
               ) : (
@@ -142,7 +142,7 @@ export const DashboardPage = () => {
                 const pDone = pTasks.filter((t) => t.status === "done").length;
                 const pct = pTasks.length ? Math.round((pDone / pTasks.length) * 100) : 0;
                 return (
-                  <Link key={p.id} to={`/app/projects/${p.id}`} className="card block p-4">
+                  <Link key={p.id} to={`/app/projects/${p.id}`} className="card block w-full min-w-0 p-4">
                     <div className="flex items-center gap-2">
                       <span className="sidebar-project-dot h-3.5 w-3.5 rounded-full" style={{ backgroundColor: p.color, color: p.color }} />
                       <span className="flex-1 truncate text-[13px] font-medium">{p.name}</span>

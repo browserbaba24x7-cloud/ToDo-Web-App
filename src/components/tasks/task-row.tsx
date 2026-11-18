@@ -43,7 +43,7 @@ export const TaskRow = ({ task }: { task: Task }) => {
         ref={setNodeRef}
         style={style}
         className={cn(
-          "group flex items-start gap-3 rounded-clay border-2 bg-surface px-4 py-3 shadow-clay transition-all duration-150 hover:-translate-y-0.5 hover:shadow-clay-hover",
+          "group flex w-full min-w-0 items-start gap-3 rounded-clay border-2 bg-surface px-4 py-3 shadow-clay transition-all duration-150 hover:-translate-y-0.5 hover:shadow-clay-hover",
           isDragging && "z-10 opacity-0",
         )}
       >
@@ -93,7 +93,7 @@ export const TaskRow = ({ task }: { task: Task }) => {
             type="button"
             {...listeners}
             {...attributes}
-            className="touch-none cursor-grab rounded p-1.5 text-muted-foreground hover:bg-elevated hover:text-foreground active:cursor-grabbing"
+            className="hidden touch-none cursor-grab rounded p-1.5 text-muted-foreground hover:bg-elevated hover:text-foreground active:cursor-grabbing md:flex"
             aria-label="Drag task to a project or Inbox"
           >
             <GripVertical className="h-3.5 w-3.5" />

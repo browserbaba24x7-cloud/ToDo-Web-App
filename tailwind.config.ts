@@ -69,16 +69,11 @@ export default {
           "65%": { transform: "scale(1.2)" },
           "100%": { transform: "scale(1)" },
         },
-        "slide-in": {
-          from: { transform: "translateX(100%)" },
-          to: { transform: "translateX(0)" },
-        },
       },
       animation: {
         "fade-in": "fade-in 0.2s ease-out",
         "clay-pop": "clay-pop 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both",
         "checkbox-pop": "checkbox-pop 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)",
-        "slide-in": "slide-in 0.3s ease-out",
       },
     },
   },
