@@ -224,11 +224,7 @@ export const SettingsPage = () => {
       }
 
       setDeviceSessions((current) =>
-        current.map((device) =>
-          device.session_id === currentDeviceSessionId
-            ? device
-            : { ...device, revoked_at: device.revoked_at || new Date().toISOString() },
-        ),
+        current.filter((device) => device.session_id === currentDeviceSessionId),
       );
 
       const { error: signOutError } = await supabase.auth.signOut({ scope: "others" });
@@ -690,10 +686,10 @@ export const SettingsPage = () => {
             <SectionHeading
               icon={Monitor}
               title="Devices & sessions"
-              description="Review browsers that have used your TaskFlow account."
+              description="Review the browsers and devices currently signed in to your account."
             />
             <span className="rounded-full border border-border bg-elevated px-3 py-1.5 text-[11px] font-bold text-muted-foreground">
-              {deviceSessions.length} known
+              {deviceSessions.length} {deviceSessions.length === 1 ? "device" : "devices"}
             </span>
           </div>
 
@@ -736,11 +732,6 @@ export const SettingsPage = () => {
                             This device
                           </span>
                         )}
-                        {device.revoked_at && (
-                          <span className="rounded-full bg-danger/15 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-danger-foreground">
-                            Signed out
-                          </span>
-                        )}
                       </div>
                       <p className="mt-1 text-[11px] text-muted-foreground">Last active {lastSeen}</p>
                     </div>
@@ -759,7 +750,7 @@ export const SettingsPage = () => {
               type="button"
               variant="danger"
               size="sm"
-              disabled={signingOutOthers}
+              disabled={signingOutOthers || devicesLoading || Boolean(devicesError) || !currentDeviceSessionId}
               onClick={() => setSignOutOthersOpen(true)}
             >
               <LogOut className="h-4 w-4" />
