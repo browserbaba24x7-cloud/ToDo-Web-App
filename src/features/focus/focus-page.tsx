@@ -1,11 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   Check,
+  X,
   Pause,
   Clock3,
   Pencil,
+  PictureInPicture2,
   Play,
   Plus,
   RotateCcw,
@@ -22,6 +25,10 @@ interface FocusTimer {
   id: string;
   name: string;
   durationMinutes: number;
+}
+
+interface DocumentPictureInPictureApi {
+  requestWindow(options?: { width?: number; height?: number }): Promise<Window>;
 }
 
 const STORAGE_KEY = "taskflow_focus_timers";
@@ -68,33 +75,28 @@ const formatTime = (seconds: number) => {
 
 const FocusTimerCard = ({
   timer,
+  secondsLeft,
+  isRunning,
+  isPinned,
   isEditing,
   onEdit,
   onDelete,
+  onToggle,
+  onReset,
+  onPin,
 }: {
   timer: FocusTimer;
+  secondsLeft: number;
+  isRunning: boolean;
+  isPinned: boolean;
   isEditing: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onToggle: () => void;
+  onReset: () => void;
+  onPin: () => void;
 }) => {
   const totalSeconds = timer.durationMinutes * 60;
-  const [secondsLeft, setSecondsLeft] = useState(totalSeconds);
-  const [isRunning, setIsRunning] = useState(false);
-
-  useEffect(() => {
-    if (!isRunning) return;
-    const timeoutId = window.setTimeout(() => {
-      if (secondsLeft <= 1) {
-        setSecondsLeft(0);
-        setIsRunning(false);
-        toast.success(`${timer.name} focus session complete.`);
-      } else {
-        setSecondsLeft((remaining) => remaining - 1);
-      }
-    }, 1000);
-    return () => window.clearTimeout(timeoutId);
-  }, [isRunning, secondsLeft, timer.name]);
-
   const progress = totalSeconds ? (secondsLeft / totalSeconds) * 100 : 0;
   const angle = `${progress * 3.6}deg`;
 
@@ -129,6 +131,17 @@ const FocusTimerCard = ({
             </button>
           </div>
         )}
+        {!isEditing && (
+          <button
+            type="button"
+            onClick={onPin}
+            className={`rounded-full p-2 transition-colors ${isPinned ? "bg-primary/20 text-primary" : "text-muted-foreground hover:bg-elevated hover:text-foreground"}`}
+            aria-label={isPinned ? `Show ${timer.name} in floating window` : `Pin ${timer.name} on top`}
+            title={isPinned ? "Show floating timer" : "Keep timer on top"}
+          >
+            <PictureInPicture2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center py-4">
@@ -157,10 +170,7 @@ const FocusTimerCard = ({
         <button
           type="button"
           disabled={isEditing}
-          onClick={() => {
-            if (secondsLeft === 0) setSecondsLeft(totalSeconds);
-            setIsRunning((running) => !running);
-          }}
+          onClick={onToggle}
           className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-clay disabled:cursor-not-allowed disabled:opacity-50"
           aria-label={isRunning ? `Pause ${timer.name}` : `Start ${timer.name}`}
         >
@@ -169,10 +179,7 @@ const FocusTimerCard = ({
         <button
           type="button"
           disabled={isEditing}
-          onClick={() => {
-            setIsRunning(false);
-            setSecondsLeft(totalSeconds);
-          }}
+          onClick={onReset}
           className="flex h-9 w-9 items-center justify-center rounded-full border-2 text-muted-foreground hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
           aria-label={`Reset ${timer.name}`}
         >
@@ -186,6 +193,13 @@ const FocusTimerCard = ({
 export const FocusPage = () => {
   const navigate = useNavigate();
   const [timers, setTimers] = useState<FocusTimer[]>(loadTimers);
+  const [remainingById, setRemainingById] = useState<Record<string, number>>(() =>
+    Object.fromEntries(loadTimers().map((timer) => [timer.id, timer.durationMinutes * 60])),
+  );
+  const [runningIds, setRunningIds] = useState<string[]>([]);
+  const [endAtById, setEndAtById] = useState<Record<string, number>>({});
+  const [pinnedTimerId, setPinnedTimerId] = useState<string>();
+  const [pipWindow, setPipWindow] = useState<Window | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTimer, setEditingTimer] = useState<FocusTimer>();
@@ -193,10 +207,181 @@ export const FocusPage = () => {
   const [duration, setDuration] = useState("25");
   const [formError, setFormError] = useState("");
 
+  useEffect(() => {
+    if (runningIds.length === 0) return;
+    const intervalId = window.setInterval(() => {
+      const now = Date.now();
+      setRemainingById((current) => {
+        let changed = false;
+        const next = { ...current };
+        runningIds.forEach((id) => {
+          const endAt = endAtById[id];
+          if (endAt === undefined) return;
+          const remaining = Math.max(0, Math.ceil((endAt - now) / 1000));
+          if (next[id] !== remaining) {
+            next[id] = remaining;
+            changed = true;
+          }
+        });
+        return changed ? next : current;
+      });
+    }, 500);
+    return () => window.clearInterval(intervalId);
+  }, [runningIds, endAtById]);
+
+  useEffect(() => {
+    const completedIds = runningIds.filter((id) => remainingById[id] === 0);
+    if (completedIds.length === 0) return;
+    setRunningIds((current) => current.filter((id) => !completedIds.includes(id)));
+    setEndAtById((current) => {
+      const next = { ...current };
+      completedIds.forEach((id) => delete next[id]);
+      return next;
+    });
+    completedIds.forEach((id) => {
+      const timer = timers.find((item) => item.id === id);
+      if (timer) toast.success(`${timer.name} focus session complete.`);
+    });
+  }, [remainingById, runningIds, timers]);
+
+  useEffect(() => {
+    if (!pipWindow) return;
+    const handlePageHide = () => {
+      setPipWindow(null);
+      setPinnedTimerId(undefined);
+    };
+    pipWindow.addEventListener("pagehide", handlePageHide, { once: true });
+    return () => {
+      pipWindow.removeEventListener("pagehide", handlePageHide);
+      if (!pipWindow.closed) pipWindow.close();
+    };
+  }, [pipWindow]);
+
+  useEffect(() => {
+    if (!pipWindow || !pinnedTimerId) return;
+    const timer = timers.find((item) => item.id === pinnedTimerId);
+    if (timer) pipWindow.document.title = `${timer.name} · TaskFlow Focus`;
+  }, [pipWindow, pinnedTimerId, timers]);
+
+  const getSecondsLeft = (timer: FocusTimer) => {
+    const endAt = endAtById[timer.id];
+    if (runningIds.includes(timer.id) && endAt !== undefined) {
+      return Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+    }
+    return remainingById[timer.id] ?? timer.durationMinutes * 60;
+  };
+
+  const toggleTimer = (timer: FocusTimer) => {
+    if (runningIds.includes(timer.id)) {
+      const secondsLeft = getSecondsLeft(timer);
+      setRunningIds((current) => current.filter((id) => id !== timer.id));
+      setEndAtById((current) => {
+        const next = { ...current };
+        delete next[timer.id];
+        return next;
+      });
+      setRemainingById((current) => ({ ...current, [timer.id]: secondsLeft }));
+      return;
+    }
+
+    const secondsLeft = getSecondsLeft(timer);
+    const nextSecondsLeft = secondsLeft || timer.durationMinutes * 60;
+    setRemainingById((current) => ({ ...current, [timer.id]: nextSecondsLeft }));
+    setEndAtById((current) => ({ ...current, [timer.id]: Date.now() + nextSecondsLeft * 1000 }));
+    setRunningIds((current) => [...current, timer.id]);
+  };
+
+  const resetTimer = (timer: FocusTimer) => {
+    setRunningIds((current) => current.filter((id) => id !== timer.id));
+    setEndAtById((current) => {
+      const next = { ...current };
+      delete next[timer.id];
+      return next;
+    });
+    setRemainingById((current) => ({ ...current, [timer.id]: timer.durationMinutes * 60 }));
+  };
+
+  const pinTimer = async (timerId: string) => {
+    if (pipWindow && !pipWindow.closed) {
+      setPinnedTimerId(timerId);
+      pipWindow.focus();
+      return;
+    }
+
+    const pictureInPicture = (window as Window & {
+      documentPictureInPicture?: DocumentPictureInPictureApi;
+    }).documentPictureInPicture;
+    if (!pictureInPicture) {
+      toast.error("Floating timers require Picture-in-Picture support in your browser.");
+      return;
+    }
+
+    try {
+      const nextWindow = await pictureInPicture.requestWindow({ width: 360, height: 420 });
+      document.querySelectorAll('link[rel="stylesheet"], style').forEach((style) => {
+        nextWindow.document.head.appendChild(style.cloneNode(true));
+      });
+      nextWindow.document.documentElement.className = document.documentElement.className;
+      nextWindow.document.body.className = document.body.className;
+      nextWindow.document.title = "TaskFlow Focus";
+      setPinnedTimerId(timerId);
+      setPipWindow(nextWindow);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not open the floating timer.");
+    }
+  };
+
+  const closePinnedTimer = () => {
+    if (pipWindow && !pipWindow.closed) pipWindow.close();
+    setPipWindow(null);
+    setPinnedTimerId(undefined);
+  };
+
+  const pinnedTimer = timers.find((timer) => timer.id === pinnedTimerId);
+  const pinnedSecondsLeft = pinnedTimer ? getSecondsLeft(pinnedTimer) : 0;
+  const pinnedIsRunning = Boolean(pinnedTimer && runningIds.includes(pinnedTimer.id));
+
   const saveTimers = (nextTimers: FocusTimer[]) => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(nextTimers));
       setTimers(nextTimers);
+      setRemainingById((current) =>
+        Object.fromEntries(
+          nextTimers.map((timer) => {
+            const previousTimer = timers.find((item) => item.id === timer.id);
+            const keepRemaining =
+              previousTimer?.durationMinutes === timer.durationMinutes &&
+              current[timer.id] !== undefined;
+            return [
+              timer.id,
+              keepRemaining ? current[timer.id] : timer.durationMinutes * 60,
+            ];
+          }),
+        ),
+      );
+      setRunningIds((current) =>
+        current.filter((id) => {
+          const previousTimer = timers.find((timer) => timer.id === id);
+          const nextTimer = nextTimers.find((timer) => timer.id === id);
+          return previousTimer && nextTimer &&
+            previousTimer.durationMinutes === nextTimer.durationMinutes;
+        }),
+      );
+      setEndAtById((current) => {
+        const next = { ...current };
+        Object.keys(next).forEach((id) => {
+          const previousTimer = timers.find((timer) => timer.id === id);
+          const nextTimer = nextTimers.find((timer) => timer.id === id);
+          if (!previousTimer || !nextTimer ||
+            previousTimer.durationMinutes !== nextTimer.durationMinutes) {
+            delete next[id];
+          }
+        });
+        return next;
+      });
+      if (pinnedTimerId && !nextTimers.some((timer) => timer.id === pinnedTimerId)) {
+        closePinnedTimer();
+      }
       return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save your focus timers.");
@@ -295,9 +480,15 @@ export const FocusPage = () => {
             <FocusTimerCard
               key={`${timer.id}:${timer.durationMinutes}`}
               timer={timer}
+              secondsLeft={getSecondsLeft(timer)}
+              isRunning={runningIds.includes(timer.id)}
+              isPinned={pinnedTimerId === timer.id}
               isEditing={isEditing}
               onEdit={() => openEditTimer(timer)}
               onDelete={() => deleteTimer(timer)}
+              onToggle={() => toggleTimer(timer)}
+              onReset={() => resetTimer(timer)}
+              onPin={() => pinTimer(timer.id)}
             />
           ))}
         </div>
@@ -360,6 +551,54 @@ export const FocusPage = () => {
           </form>
         </DialogContent>
       </Dialog>
+      {pipWindow && pinnedTimer && createPortal(
+        <main className="flex min-h-screen flex-col items-center justify-between bg-background p-4 text-foreground">
+          <header className="flex w-full items-center justify-between gap-2">
+            <span className="truncate text-sm font-bold">{pinnedTimer.name}</span>
+            <button
+              type="button"
+              onClick={closePinnedTimer}
+              className="rounded-full p-2 text-muted-foreground hover:bg-elevated hover:text-foreground"
+              aria-label="Close floating timer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </header>
+          <div className="grid flex-1 place-items-center">
+            <div
+              className="grid h-64 w-64 place-items-center rounded-full p-3"
+              style={{
+                background: `conic-gradient(hsl(var(--primary)) 0deg ${(pinnedSecondsLeft / (pinnedTimer.durationMinutes * 60)) * 360}deg, hsl(var(--elevated)) ${(pinnedSecondsLeft / (pinnedTimer.durationMinutes * 60)) * 360}deg 360deg)`,
+              }}
+            >
+              <div className="grid h-full w-full place-items-center rounded-full bg-surface shadow-clay-inset">
+                <p className="font-mono text-4xl font-bold tabular-nums tracking-tight" role="timer">
+                  {formatTime(pinnedSecondsLeft)}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center justify-center gap-3 pb-2">
+            <button
+              type="button"
+              onClick={() => toggleTimer(pinnedTimer)}
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-clay"
+              aria-label={pinnedIsRunning ? "Pause timer" : "Start timer"}
+            >
+              {pinnedIsRunning ? <Pause className="h-5 w-5" /> : <Play className="ml-0.5 h-5 w-5" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => resetTimer(pinnedTimer)}
+              className="flex h-11 w-11 items-center justify-center rounded-full border-2 text-muted-foreground hover:bg-elevated"
+              aria-label="Reset timer"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+          </div>
+        </main>,
+        pipWindow.document.body,
+      )}
     </div>
   );
 };
