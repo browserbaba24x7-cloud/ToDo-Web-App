@@ -700,7 +700,8 @@ export const SettingsPage = () => {
               </p>
             ) : devicesError ? (
               <p role="alert" className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-xs text-danger-foreground">
-                Device list unavailable: {devicesError}. Apply the device-sessions database migration and reload this page.
+                <span>Device list unavailable: {devicesError}</span>
+                <span className="mt-1 block">Apply the device-sessions database migration and reload this page.</span>
               </p>
             ) : deviceSessions.length === 0 ? (
               <p className="rounded-2xl border border-border bg-elevated/50 px-4 py-3 text-xs text-muted-foreground">
