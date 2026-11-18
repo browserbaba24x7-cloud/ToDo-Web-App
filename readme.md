@@ -39,7 +39,8 @@ taskflow/
 2. Run the migrations in timestamp order in the Supabase SQL Editor:
    `20261117000000_initial_schema.sql`,
    `20261118000000_add_task_reminders.sql`, and
-   `20261118010000_add_device_sessions.sql`.
+   `20261118010000_add_device_sessions.sql`, and
+   `20261118020000_enforce_device_session_revocation.sql`.
 3. In Supabase Authentication settings, set the Site URL to your app origin
    and add `<app-origin>/reset-password` and `<app-origin>/app/settings` as
    redirect URLs for password resets and email changes.
@@ -52,4 +53,7 @@ policies enforce ownership. Email address changes take effect after the user
 confirms the verification email from Supabase. Device labels and last-seen times
 are recorded for sessions that use the app after the device-sessions migration
 is applied. The app can sign out all other sessions, including sessions that
-have not yet appeared in the device list.
+have not yet appeared in the device list. The session-enforcement migration
+also prevents revoked device sessions from accessing tasks and projects and
+signs them out when they next open or refresh the app. Existing access tokens
+may remain valid for unrelated API requests until their configured expiry.

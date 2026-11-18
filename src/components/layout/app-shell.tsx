@@ -18,7 +18,11 @@ import { useProjects } from "@/lib/store/project-store";
 import { toast, Toaster } from "sonner";
 import { useTaskReminders } from "@/lib/hooks/use-task-reminders";
 import { useAuth } from "@/lib/auth/auth-context";
-import { registerDeviceSession } from "@/lib/services/device-session-service";
+import {
+  getDeviceSessionErrorMessage,
+  registerDeviceSession,
+} from "@/lib/services/device-session-service";
+import { supabase } from "@/lib/supabase";
 
 const routeTitles: Record<string, string> = {
   "/app/dashboard": "Dashboard",
@@ -77,19 +81,23 @@ export const AppShell = () => {
     let interval: number | undefined;
     const register = async () => {
       try {
-        await registerDeviceSession(session);
+        const result = await registerDeviceSession(session);
+        if (!result.active) {
+          if (active) {
+            toast.info("This device was signed out from another device.");
+            const { error } = await supabase.auth.signOut({ scope: "local" });
+            if (error) toast.error(`Could not clear this device's session: ${error.message}`);
+          }
+          return;
+        }
         if (active && interval === undefined) {
           interval = window.setInterval(() => {
             void register();
-          }, 5 * 60 * 1000);
+          }, 60 * 1000);
         }
       } catch (error) {
         if (active) {
-          toast.error(
-            error instanceof Error
-              ? `Could not update this device's session: ${error.message}`
-              : "Could not update this device's session.",
-          );
+          toast.error(`Could not update this device's session: ${getDeviceSessionErrorMessage(error)}`);
         }
       }
     };

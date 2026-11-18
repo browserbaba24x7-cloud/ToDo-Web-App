@@ -18,6 +18,7 @@ export interface Database {
           device_label: string;
           created_at: string;
           last_seen_at: string;
+          revoked_at: string | null;
         };
         Insert: {
           user_id: string;
@@ -25,6 +26,7 @@ export interface Database {
           device_label: string;
           created_at?: string;
           last_seen_at?: string;
+          revoked_at?: string | null;
         };
         Update: {
           user_id?: string;
@@ -32,6 +34,7 @@ export interface Database {
           device_label?: string;
           created_at?: string;
           last_seen_at?: string;
+          revoked_at?: string | null;
         };
         Relationships: [];
       };
@@ -117,7 +120,20 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      is_current_device_session_active: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      register_device_session: {
+        Args: { p_device_label: string };
+        Returns: boolean;
+      };
+      revoke_other_device_sessions: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

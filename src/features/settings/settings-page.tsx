@@ -29,7 +29,12 @@ import { useTasks } from "@/lib/store/task-store";
 import { useProjects } from "@/lib/store/project-store";
 import type { ThemeMode } from "@/lib/types";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { listDeviceSessions, registerDeviceSession, type DeviceSession } from "@/lib/services/device-session-service";
+import {
+  getDeviceSessionErrorMessage,
+  listDeviceSessions,
+  registerDeviceSession,
+  type DeviceSession,
+} from "@/lib/services/device-session-service";
 
 const themeOptions: { id: ThemeMode; label: string; icon: LucideIcon }[] = [
   { id: "light", label: "Light", icon: Sun },
@@ -128,7 +133,7 @@ export const SettingsPage = () => {
     let active = true;
     const loadDevices = async () => {
       try {
-        const sessionId = await registerDeviceSession(session);
+        const { sessionId } = await registerDeviceSession(session);
         const sessions = await listDeviceSessions();
         if (active) {
           setCurrentDeviceSessionId(sessionId);
@@ -137,9 +142,7 @@ export const SettingsPage = () => {
         }
       } catch (error) {
         if (active) {
-          setDevicesError(
-            error instanceof Error ? error.message : "Could not load device sessions.",
-          );
+          setDevicesError(getDeviceSessionErrorMessage(error));
         }
       } finally {
         if (active) setDevicesLoading(false);
@@ -214,25 +217,26 @@ export const SettingsPage = () => {
   const signOutOtherDevices = async () => {
     setSigningOutOthers(true);
     try {
-      const { error } = await supabase.auth.signOut({ scope: "others" });
-      if (error) {
-        toast.error(error.message);
+      const { error: revokeError } = await supabase.rpc("revoke_other_device_sessions");
+      if (revokeError) {
+        toast.error(revokeError.message);
         return;
       }
 
-      if (session?.user.id && currentDeviceSessionId) {
-        const { error: cleanupError } = await supabase
-          .from("device_sessions")
-          .delete()
-          .eq("user_id", session.user.id)
-          .neq("session_id", currentDeviceSessionId);
-        if (cleanupError) {
-          toast.error(`Other sessions were signed out, but the device list could not be refreshed: ${cleanupError.message}`);
-          return;
-        }
-        setDeviceSessions((current) =>
-          current.filter((device) => device.session_id === currentDeviceSessionId),
+      setDeviceSessions((current) =>
+        current.map((device) =>
+          device.session_id === currentDeviceSessionId
+            ? device
+            : { ...device, revoked_at: device.revoked_at || new Date().toISOString() },
+        ),
+      );
+
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "others" });
+      if (signOutError) {
+        toast.error(
+          `Other devices can no longer access TaskFlow data, but their refresh tokens could not be revoked: ${signOutError.message}`,
         );
+        return;
       }
 
       toast.success("All other devices have been signed out.");
@@ -701,7 +705,9 @@ export const SettingsPage = () => {
             ) : devicesError ? (
               <p role="alert" className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-xs text-danger-foreground">
                 <span>Device list unavailable: {devicesError}</span>
-                <span className="mt-1 block">Apply the device-sessions database migration and reload this page.</span>
+                <span className="mt-1 block">
+                  Apply <code>20261118020000_enforce_device_session_revocation.sql</code> to the same Supabase project, then reload.
+                </span>
               </p>
             ) : deviceSessions.length === 0 ? (
               <p className="rounded-2xl border border-border bg-elevated/50 px-4 py-3 text-xs text-muted-foreground">
@@ -728,6 +734,11 @@ export const SettingsPage = () => {
                         {isCurrent && (
                           <span className="rounded-full bg-success/20 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-success-foreground">
                             This device
+                          </span>
+                        )}
+                        {device.revoked_at && (
+                          <span className="rounded-full bg-danger/15 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-danger-foreground">
+                            Signed out
                           </span>
                         )}
                       </div>

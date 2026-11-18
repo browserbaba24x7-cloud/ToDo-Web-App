@@ -6,6 +6,24 @@ export type DeviceSession = {
   device_label: string;
   created_at: string;
   last_seen_at: string;
+  revoked_at: string | null;
+};
+
+export const getDeviceSessionErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error !== "object" || error === null || !("message" in error)) {
+    return "Could not load device sessions.";
+  }
+
+  const { message, details, hint, code } = error as {
+    message?: unknown;
+    details?: unknown;
+    hint?: unknown;
+    code?: unknown;
+  };
+  const parts = [message, details, hint, code]
+    .filter((part): part is string => typeof part === "string" && part.length > 0);
+  return parts.length > 0 ? parts.join(" — ") : "Could not load device sessions.";
 };
 
 const getSessionId = (accessToken: string) => {
@@ -59,23 +77,17 @@ const getDeviceLabel = () => {
 
 export const registerDeviceSession = async (session: Session) => {
   const sessionId = getSessionId(session.access_token);
-  const { error } = await supabase.from("device_sessions").upsert(
-    {
-      user_id: session.user.id,
-      session_id: sessionId,
-      device_label: getDeviceLabel(),
-      last_seen_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id,session_id" },
-  );
+  const { data: active, error } = await supabase.rpc("register_device_session", {
+    p_device_label: getDeviceLabel(),
+  });
   if (error) throw error;
-  return sessionId;
+  return { sessionId, active };
 };
 
 export const listDeviceSessions = async (): Promise<DeviceSession[]> => {
   const { data, error } = await supabase
     .from("device_sessions")
-    .select("session_id, device_label, created_at, last_seen_at")
+    .select("session_id, device_label, created_at, last_seen_at, revoked_at")
     .order("last_seen_at", { ascending: false });
   if (error) throw error;
   return data;
