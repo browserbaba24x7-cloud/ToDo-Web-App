@@ -11,6 +11,30 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      device_sessions: {
+        Row: {
+          user_id: string;
+          session_id: string;
+          device_label: string;
+          created_at: string;
+          last_seen_at: string;
+        };
+        Insert: {
+          user_id: string;
+          session_id: string;
+          device_label: string;
+          created_at?: string;
+          last_seen_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          session_id?: string;
+          device_label?: string;
+          created_at?: string;
+          last_seen_at?: string;
+        };
+        Relationships: [];
+      };
       projects: {
         Row: {
           id: string;

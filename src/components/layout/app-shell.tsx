@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import {
   DndContext,
@@ -17,6 +17,8 @@ import { useTasks, useUpdateTask } from "@/lib/store/task-store";
 import { useProjects } from "@/lib/store/project-store";
 import { toast, Toaster } from "sonner";
 import { useTaskReminders } from "@/lib/hooks/use-task-reminders";
+import { useAuth } from "@/lib/auth/auth-context";
+import { registerDeviceSession } from "@/lib/services/device-session-service";
 
 const routeTitles: Record<string, string> = {
   "/app/dashboard": "Dashboard",
@@ -51,6 +53,7 @@ const centerOverlayOnPointer: Modifier = ({
 export const AppShell = () => {
   const location = useLocation();
   const [activeTaskId, setActiveTaskId] = useState<string>();
+  const { session } = useAuth();
   const { data: tasks = [] } = useTasks();
   useTaskReminders(tasks);
   const { data: projects = [] } = useProjects();
@@ -66,6 +69,37 @@ export const AppShell = () => {
     editTaskId,
     setEditTaskId,
   } = useUIStore();
+
+  useEffect(() => {
+    if (!session) return;
+
+    let active = true;
+    let interval: number | undefined;
+    const register = async () => {
+      try {
+        await registerDeviceSession(session);
+        if (active && interval === undefined) {
+          interval = window.setInterval(() => {
+            void register();
+          }, 5 * 60 * 1000);
+        }
+      } catch (error) {
+        if (active) {
+          toast.error(
+            error instanceof Error
+              ? `Could not update this device's session: ${error.message}`
+              : "Could not update this device's session.",
+          );
+        }
+      }
+    };
+
+    void register();
+    return () => {
+      active = false;
+      if (interval !== undefined) window.clearInterval(interval);
+    };
+  }, [session?.access_token, session?.user.id]);
 
   const title =
     routeTitles[location.pathname] ||

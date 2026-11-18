@@ -13,7 +13,6 @@ import {
   ShieldCheck,
   Sparkles,
   Sun,
-  UserRound,
   Wifi,
   WifiOff,
   type LucideIcon,
@@ -29,6 +28,8 @@ import { taskNotificationSettingsEvent } from "@/lib/hooks/use-task-reminders";
 import { useTasks } from "@/lib/store/task-store";
 import { useProjects } from "@/lib/store/project-store";
 import type { ThemeMode } from "@/lib/types";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { listDeviceSessions, registerDeviceSession, type DeviceSession } from "@/lib/services/device-session-service";
 
 const themeOptions: { id: ThemeMode; label: string; icon: LucideIcon }[] = [
   { id: "light", label: "Light", icon: Sun },
@@ -70,9 +71,16 @@ export const SettingsPage = () => {
   const [profileEditing, setProfileEditing] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [passwordEditing, setPasswordEditing] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [deviceSessions, setDeviceSessions] = useState<DeviceSession[]>([]);
+  const [devicesLoading, setDevicesLoading] = useState(true);
+  const [devicesError, setDevicesError] = useState("");
+  const [currentDeviceSessionId, setCurrentDeviceSessionId] = useState("");
+  const [signOutOthersOpen, setSignOutOthersOpen] = useState(false);
+  const [signingOutOthers, setSigningOutOthers] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     () => localStorage.getItem("taskflow_notifications_enabled") === "true",
   );
@@ -110,6 +118,43 @@ export const SettingsPage = () => {
       window.removeEventListener("offline", updateConnection);
     };
   }, []);
+
+  useEffect(() => {
+    if (!session) {
+      setDevicesLoading(false);
+      return;
+    }
+
+    let active = true;
+    const loadDevices = async () => {
+      try {
+        const sessionId = await registerDeviceSession(session);
+        const sessions = await listDeviceSessions();
+        if (active) {
+          setCurrentDeviceSessionId(sessionId);
+          setDeviceSessions(sessions);
+          setDevicesError("");
+        }
+      } catch (error) {
+        if (active) {
+          setDevicesError(
+            error instanceof Error ? error.message : "Could not load device sessions.",
+          );
+        }
+      } finally {
+        if (active) setDevicesLoading(false);
+      }
+    };
+
+    void loadDevices();
+    const interval = window.setInterval(() => {
+      void loadDevices();
+    }, 60 * 1000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [session?.access_token, session?.user.id]);
 
   const exportBackup = () => {
     if (tasksLoading || projectsLoading) {
@@ -163,6 +208,38 @@ export const SettingsPage = () => {
       toast.success("Account ID copied.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not copy the account ID.");
+    }
+  };
+
+  const signOutOtherDevices = async () => {
+    setSigningOutOthers(true);
+    try {
+      const { error } = await supabase.auth.signOut({ scope: "others" });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      if (session?.user.id && currentDeviceSessionId) {
+        const { error: cleanupError } = await supabase
+          .from("device_sessions")
+          .delete()
+          .eq("user_id", session.user.id)
+          .neq("session_id", currentDeviceSessionId);
+        if (cleanupError) {
+          toast.error(`Other sessions were signed out, but the device list could not be refreshed: ${cleanupError.message}`);
+          return;
+        }
+        setDeviceSessions((current) =>
+          current.filter((device) => device.session_id === currentDeviceSessionId),
+        );
+      }
+
+      toast.success("All other devices have been signed out.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not sign out other devices.");
+    } finally {
+      setSigningOutOthers(false);
     }
   };
 
@@ -302,6 +379,7 @@ export const SettingsPage = () => {
       }
 
       formElement.reset();
+      setPasswordEditing(false);
       toast.success("Password updated.");
     } catch (requestError) {
       setPasswordError(
@@ -344,69 +422,121 @@ export const SettingsPage = () => {
 
       <section className="card space-y-5 p-5 sm:p-6">
         <SectionHeading
-          icon={UserRound}
-          title="Profile"
-          description="Update the name and email associated with your account."
+          icon={ShieldCheck}
+          title="Profile & security"
+          description="Manage your account details and password in one place."
         />
-        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-elevated/60 p-3 sm:p-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-base font-extrabold text-primary-foreground shadow-clay">
-            {initials}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-bold">{profileName}</p>
-            <p className="truncate text-xs text-muted-foreground">{profileEmail}</p>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              if (profileEditing) {
-                setProfileName(accountName);
-                setProfileEmail(email);
-                setProfileError("");
-              }
-              setProfileEditing(!profileEditing);
-            }}
-          >
-            {profileEditing ? "Cancel" : "Edit profile"}
-          </Button>
-        </div>
-        {profileEditing && (
-          <form onSubmit={saveProfile} className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label htmlFor="profileFullName" className="mb-1.5 block text-[13px] font-semibold">Full name</label>
-              <Input
-                id="profileFullName"
-                name="fullName"
-                value={profileName}
-                onChange={(event) => setProfileName(event.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="profileEmail" className="mb-1.5 block text-[13px] font-semibold">Email</label>
-              <Input
-                id="profileEmail"
-                name="email"
-                type="email"
-                value={profileEmail}
-                onChange={(event) => setProfileEmail(event.target.value)}
-                required
-              />
-            </div>
-            {profileError && (
-              <p role="alert" className="rounded-clay bg-danger/25 px-3 py-2 text-[12px] text-danger-foreground shadow-clay-inset sm:col-span-2">
-                {profileError}
-              </p>
-            )}
-            <div className="sm:col-span-2">
-              <Button type="submit" size="sm" disabled={profileSaving}>
-                {profileSaving ? "Saving…" : "Save changes"}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-4 rounded-2xl border border-border bg-elevated/40 p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-base font-extrabold text-primary-foreground shadow-clay">
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold">{profileName}</p>
+                <p className="truncate text-xs text-muted-foreground">{profileEmail}</p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  if (profileEditing) {
+                    setProfileName(accountName);
+                    setProfileEmail(email);
+                    setProfileError("");
+                  }
+                  setProfileEditing(!profileEditing);
+                }}
+              >
+                {profileEditing ? "Cancel" : "Edit profile"}
               </Button>
             </div>
-          </form>
-        )}
+            {profileEditing && (
+              <form onSubmit={saveProfile} className="space-y-3">
+                <div>
+                  <label htmlFor="profileFullName" className="mb-1.5 block text-[13px] font-semibold">Full name</label>
+                  <Input
+                    id="profileFullName"
+                    name="fullName"
+                    value={profileName}
+                    onChange={(event) => setProfileName(event.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="profileEmail" className="mb-1.5 block text-[13px] font-semibold">Email</label>
+                  <Input
+                    id="profileEmail"
+                    name="email"
+                    type="email"
+                    value={profileEmail}
+                    onChange={(event) => setProfileEmail(event.target.value)}
+                    required
+                  />
+                </div>
+                {profileError && (
+                  <p role="alert" className="rounded-clay bg-danger/25 px-3 py-2 text-[12px] text-danger-foreground shadow-clay-inset">
+                    {profileError}
+                  </p>
+                )}
+                <Button type="submit" size="sm" disabled={profileSaving}>
+                  {profileSaving ? "Saving…" : "Save changes"}
+                </Button>
+              </form>
+            )}
+          </div>
+
+          <div className="space-y-4 rounded-2xl border border-border bg-elevated/40 p-4">
+            <div>
+              <h4 className="text-sm font-bold">Password</h4>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Change your password using your current credentials.
+              </p>
+            </div>
+            {!passwordEditing ? (
+              <Button type="button" size="sm" variant="secondary" onClick={() => setPasswordEditing(true)}>
+                Change password
+              </Button>
+            ) : (
+              <form onSubmit={updatePassword} className="space-y-3">
+                <div>
+                  <label htmlFor="currentPassword" className="mb-1.5 block text-[13px] font-semibold">Current password</label>
+                  <Input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" required />
+                </div>
+                <div>
+                  <label htmlFor="newPassword" className="mb-1.5 block text-[13px] font-semibold">New password</label>
+                  <Input id="newPassword" name="newPassword" type="password" autoComplete="new-password" minLength={6} required />
+                </div>
+                <div>
+                  <label htmlFor="confirmPassword" className="mb-1.5 block text-[13px] font-semibold">Confirm new password</label>
+                  <Input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" minLength={6} required />
+                </div>
+                {passwordError && (
+                  <p role="alert" className="rounded-clay bg-danger/25 px-3 py-2 text-[12px] text-danger-foreground shadow-clay-inset">
+                    {passwordError}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" size="sm" disabled={passwordSaving}>
+                    {passwordSaving ? "Updating…" : "Update password"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setPasswordEditing(false);
+                      setPasswordError("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
       </section>
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -479,68 +609,36 @@ export const SettingsPage = () => {
         </section>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <section className="card space-y-5 p-5 sm:p-6">
-          <SectionHeading
-            icon={ShieldCheck}
-            title="Security"
-            description="Change your password to keep your account protected."
-          />
-          <form onSubmit={updatePassword} className="space-y-3">
-            <div>
-              <label htmlFor="currentPassword" className="mb-1.5 block text-[13px] font-semibold">Current password</label>
-              <Input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" required />
-            </div>
-            <div>
-              <label htmlFor="newPassword" className="mb-1.5 block text-[13px] font-semibold">New password</label>
-              <Input id="newPassword" name="newPassword" type="password" autoComplete="new-password" minLength={6} required />
-            </div>
-            <div>
-              <label htmlFor="confirmPassword" className="mb-1.5 block text-[13px] font-semibold">Confirm new password</label>
-              <Input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" minLength={6} required />
-            </div>
-            {passwordError && (
-              <p role="alert" className="rounded-clay bg-danger/25 px-3 py-2 text-[12px] text-danger-foreground shadow-clay-inset">
-                {passwordError}
-              </p>
-            )}
-            <Button type="submit" size="sm" variant="secondary" disabled={passwordSaving}>
-              {passwordSaving ? "Updating…" : "Update password"}
-            </Button>
-          </form>
-        </section>
-
-        <section className="card space-y-5 p-5 sm:p-6">
-          <SectionHeading
-            icon={Database}
-            title="Data & privacy"
-            description="Keep a portable copy of your TaskFlow tasks and projects."
-          />
-          <div className="rounded-2xl border border-border bg-elevated/60 p-4">
-            <p className="text-sm font-bold">Personal data backup</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Download a JSON file containing your tasks and projects. The file stays on your device and can be kept as a backup.
-            </p>
-            <p className="mt-3 text-[11px] font-semibold text-muted-foreground">
-              {tasksLoading || projectsLoading
-                ? "Loading your data…"
-                : tasksError || projectsError
-                  ? "Data could not be loaded."
-                  : `${tasks?.length ?? 0} tasks · ${projects?.length ?? 0} projects`}
-            </p>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={exportBackup}
-            disabled={tasksLoading || projectsLoading}
-          >
-            <Download className="h-4 w-4" />
-            Export data
-          </Button>
-        </section>
-      </div>
+      <section className="card space-y-5 p-5 sm:p-6">
+        <SectionHeading
+          icon={Database}
+          title="Data & privacy"
+          description="Keep a portable copy of your TaskFlow tasks and projects."
+        />
+        <div className="rounded-2xl border border-border bg-elevated/60 p-4">
+          <p className="text-sm font-bold">Personal data backup</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            Download a JSON file containing your tasks and projects. The file stays on your device and can be kept as a backup.
+          </p>
+          <p className="mt-3 text-[11px] font-semibold text-muted-foreground">
+            {tasksLoading || projectsLoading
+              ? "Loading your data…"
+              : tasksError || projectsError
+                ? "Data could not be loaded."
+                : `${tasks?.length ?? 0} tasks · ${projects?.length ?? 0} projects`}
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          onClick={exportBackup}
+          disabled={tasksLoading || projectsLoading}
+        >
+          <Download className="h-4 w-4" />
+          Export data
+        </Button>
+      </section>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="card space-y-5 p-5 sm:p-6">
@@ -583,45 +681,104 @@ export const SettingsPage = () => {
           </dl>
         </section>
 
-        <section className="card flex flex-col justify-between gap-5 p-5 sm:p-6">
-          <div className="space-y-5">
+        <section className="card space-y-5 p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <SectionHeading
-              icon={ShieldCheck}
-              title="Current session"
-              description="You are signed in to this TaskFlow account on this device."
+              icon={Monitor}
+              title="Devices & sessions"
+              description="Review browsers that have used your TaskFlow account."
             />
-            <div className="flex items-center gap-3 rounded-2xl border border-border bg-elevated/60 p-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary-foreground">
-                <UserRound className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold">{profileName}</p>
-                <p className="truncate text-xs text-muted-foreground">{email}</p>
-              </div>
-            </div>
-            <p className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Wifi className="h-4 w-4 shrink-0" />
-              Sign out when using a shared or public device.
-            </p>
+            <span className="rounded-full border border-border bg-elevated px-3 py-1.5 text-[11px] font-bold text-muted-foreground">
+              {deviceSessions.length} known
+            </span>
           </div>
-          <Button
-            type="button"
-            variant="danger"
-            size="sm"
-            className="self-start"
-            onClick={async () => {
-              const { error } = await supabase.auth.signOut();
-              if (error) {
-                toast.error(error.message);
-                return;
-              }
-              navigate("/login", { replace: true });
-            }}
-          >
-            <LogOut className="h-4 w-4" /> Sign out
-          </Button>
+
+          <div className="space-y-2">
+            {devicesLoading ? (
+              <p role="status" className="rounded-2xl border border-border bg-elevated/50 px-4 py-3 text-xs text-muted-foreground">
+                Checking your devices…
+              </p>
+            ) : devicesError ? (
+              <p role="alert" className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-xs text-danger-foreground">
+                Device list unavailable: {devicesError}. Apply the device-sessions database migration and reload this page.
+              </p>
+            ) : deviceSessions.length === 0 ? (
+              <p className="rounded-2xl border border-border bg-elevated/50 px-4 py-3 text-xs text-muted-foreground">
+                No known devices yet. This device will be recorded automatically.
+              </p>
+            ) : (
+              deviceSessions.map((device) => {
+                const isCurrent = device.session_id === currentDeviceSessionId;
+                const lastSeen = new Intl.DateTimeFormat(undefined, {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                }).format(new Date(device.last_seen_at));
+                return (
+                  <div
+                    key={device.session_id}
+                    className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-elevated/50 p-3 sm:p-4"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary-foreground">
+                      <Monitor className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-bold">{device.device_label}</p>
+                        {isCurrent && (
+                          <span className="rounded-full bg-success/20 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-success-foreground">
+                            This device
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-[11px] text-muted-foreground">Last active {lastSeen}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            Device labels are approximate and tracking starts after this feature is deployed. “Sign out all other devices” also covers sessions not shown here. Their current access tokens may remain usable until they expire.
+          </p>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              disabled={signingOutOthers}
+              onClick={() => setSignOutOthersOpen(true)}
+            >
+              <LogOut className="h-4 w-4" />
+              {signingOutOthers ? "Signing out…" : "Sign out all other devices"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={async () => {
+                const { error } = await supabase.auth.signOut({ scope: "local" });
+                if (error) {
+                  toast.error(error.message);
+                  return;
+                }
+                navigate("/login", { replace: true });
+              }}
+            >
+              <LogOut className="h-4 w-4" /> Sign out this device
+            </Button>
+          </div>
         </section>
       </div>
+      <ConfirmDialog
+        open={signOutOthersOpen}
+        onOpenChange={setSignOutOthersOpen}
+        title="Sign out all other devices?"
+        description="Other TaskFlow sessions will need to sign in again. Their current access tokens may remain usable until they expire. This device stays signed in."
+        confirmLabel="Sign out other devices"
+        onConfirm={() => void signOutOtherDevices()}
+      />
     </div>
   );
 };
