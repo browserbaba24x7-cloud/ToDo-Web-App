@@ -1,6 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, BellOff, LogOut, Monitor, Moon, Sun } from "lucide-react";
+import {
+  Bell,
+  BellOff,
+  Check,
+  Copy,
+  Database,
+  Download,
+  LogOut,
+  Monitor,
+  Moon,
+  ShieldCheck,
+  Sparkles,
+  Sun,
+  UserRound,
+  Wifi,
+  WifiOff,
+  type LucideIcon,
+} from "lucide-react";
 import { useThemeStore } from "@/lib/store/theme-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,16 +26,53 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth/auth-context";
 import { taskNotificationSettingsEvent } from "@/lib/hooks/use-task-reminders";
+import { useTasks } from "@/lib/store/task-store";
+import { useProjects } from "@/lib/store/project-store";
+import type { ThemeMode } from "@/lib/types";
+
+const themeOptions: { id: ThemeMode; label: string; icon: LucideIcon }[] = [
+  { id: "light", label: "Light", icon: Sun },
+  { id: "dark", label: "Dark", icon: Moon },
+  { id: "system", label: "System", icon: Monitor },
+];
+
+const SectionHeading = ({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description?: string;
+}) => (
+  <div className="flex items-start gap-3">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary-foreground shadow-clay">
+      <Icon className="h-5 w-5" />
+    </div>
+    <div className="min-w-0">
+      <h3 className="text-[15px] font-bold">{title}</h3>
+      {description && <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{description}</p>}
+    </div>
+  </div>
+);
 
 export const SettingsPage = () => {
   const { mode, setMode } = useThemeStore();
   const navigate = useNavigate();
   const { session } = useAuth();
+  const { data: tasks, isLoading: tasksLoading, isError: tasksError, error: taskLoadError } = useTasks();
+  const {
+    data: projects,
+    isLoading: projectsLoading,
+    isError: projectsError,
+    error: projectLoadError,
+  } = useProjects();
   const [profileEditing, setProfileEditing] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordError, setPasswordError] = useState("");
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     () => localStorage.getItem("taskflow_notifications_enabled") === "true",
   );
@@ -39,6 +93,78 @@ export const SettingsPage = () => {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Not available";
+  const language = navigator.language || "Not available";
+  const lastSignIn = session?.user.last_sign_in_at
+    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
+        new Date(session.user.last_sign_in_at),
+      )
+    : "Not available";
+
+  useEffect(() => {
+    const updateConnection = () => setIsOnline(navigator.onLine);
+    window.addEventListener("online", updateConnection);
+    window.addEventListener("offline", updateConnection);
+    return () => {
+      window.removeEventListener("online", updateConnection);
+      window.removeEventListener("offline", updateConnection);
+    };
+  }, []);
+
+  const exportBackup = () => {
+    if (tasksLoading || projectsLoading) {
+      toast.info("Your data is still loading. Try again in a moment.");
+      return;
+    }
+    if (tasksError || projectsError) {
+      toast.error(
+        taskLoadError?.message || projectLoadError?.message || "Could not load your data for export.",
+      );
+      return;
+    }
+    if (!tasks || !projects) {
+      toast.error("Your data is not available for export yet.");
+      return;
+    }
+
+    try {
+      const backup = {
+        format: "taskflow-backup",
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        account: { id: session?.user.id, email },
+        tasks,
+        projects,
+      };
+      const file = new Blob([JSON.stringify(backup, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(file);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `taskflow-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("Your TaskFlow backup has been downloaded.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not export your data.");
+    }
+  };
+
+  const copyAccountId = async () => {
+    if (!session?.user.id) {
+      toast.error("Your account ID is unavailable.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(session.user.id);
+      toast.success("Account ID copied.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not copy the account ID.");
+    }
+  };
 
   const toggleNotifications = async () => {
     if (notificationsEnabled) {
@@ -189,26 +315,51 @@ export const SettingsPage = () => {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h2 className="text-[26px] font-semibold tracking-tight">Settings</h2>
-        <p className="mt-0.5 text-[13px] text-muted-foreground">Manage your account and preferences</p>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-5 pb-8 sm:space-y-6">
+      <header className="relative isolate overflow-hidden rounded-clay-xl border-2 border-border bg-gradient-to-br from-surface via-surface to-primary/15 p-5 shadow-clay sm:p-7">
+        <div className="pointer-events-none absolute -right-10 -top-20 -z-10 h-56 w-56 rounded-full bg-primary/15 blur-3xl" />
+        <div className="flex flex-wrap items-center justify-between gap-5">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-clay sm:flex">
+              <Sparkles className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted-foreground">
+                Personal workspace
+              </p>
+              <h2 className="mt-1 text-2xl font-extrabold tracking-tight sm:text-[30px]">
+                Make TaskFlow yours
+              </h2>
+              <p className="mt-1 max-w-xl text-[13px] leading-relaxed text-muted-foreground">
+                Fine-tune your account, security, reminders, and the way you work.
+              </p>
+            </div>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-success/30 bg-success/15 px-3 py-2 text-xs font-bold text-success-foreground">
+            <Check className="h-4 w-4" />
+            Theme and reminder preferences save automatically
+          </div>
+        </div>
+      </header>
 
-      {/* Profile */}
-      <section className="card p-5 space-y-3">
-        <h3 className="text-[15px] font-semibold">Profile</h3>
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-base font-extrabold text-primary-foreground shadow-clay">{initials}</div>
-          <div>
-            <p className="text-[14px] font-medium">{profileName}</p>
-            <p className="text-[12px] text-muted-foreground">{profileEmail}</p>
+      <section className="card space-y-5 p-5 sm:p-6">
+        <SectionHeading
+          icon={UserRound}
+          title="Profile"
+          description="Update the name and email associated with your account."
+        />
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-elevated/60 p-3 sm:p-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-base font-extrabold text-primary-foreground shadow-clay">
+            {initials}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-bold">{profileName}</p>
+            <p className="truncate text-xs text-muted-foreground">{profileEmail}</p>
           </div>
           <Button
             type="button"
             size="sm"
             variant="secondary"
-            className="ml-auto"
             onClick={() => {
               if (profileEditing) {
                 setProfileName(accountName);
@@ -218,13 +369,13 @@ export const SettingsPage = () => {
               setProfileEditing(!profileEditing);
             }}
           >
-            {profileEditing ? "Cancel" : "Edit"}
+            {profileEditing ? "Cancel" : "Edit profile"}
           </Button>
         </div>
         {profileEditing && (
-          <form onSubmit={saveProfile} className="space-y-3">
+          <form onSubmit={saveProfile} className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label htmlFor="profileFullName" className="mb-1.5 block text-[13px] font-medium">Full name</label>
+              <label htmlFor="profileFullName" className="mb-1.5 block text-[13px] font-semibold">Full name</label>
               <Input
                 id="profileFullName"
                 name="fullName"
@@ -234,7 +385,7 @@ export const SettingsPage = () => {
               />
             </div>
             <div>
-              <label htmlFor="profileEmail" className="mb-1.5 block text-[13px] font-medium">Email</label>
+              <label htmlFor="profileEmail" className="mb-1.5 block text-[13px] font-semibold">Email</label>
               <Input
                 id="profileEmail"
                 name="email"
@@ -244,81 +395,76 @@ export const SettingsPage = () => {
                 required
               />
             </div>
-            {profileError && <p role="alert" className="rounded-clay bg-danger/25 px-3 py-2 text-[12px] text-danger-foreground shadow-clay-inset">{profileError}</p>}
-            <Button type="submit" size="sm" disabled={profileSaving}>
-              {profileSaving ? "Saving…" : "Save changes"}
-            </Button>
+            {profileError && (
+              <p role="alert" className="rounded-clay bg-danger/25 px-3 py-2 text-[12px] text-danger-foreground shadow-clay-inset sm:col-span-2">
+                {profileError}
+              </p>
+            )}
+            <div className="sm:col-span-2">
+              <Button type="submit" size="sm" disabled={profileSaving}>
+                {profileSaving ? "Saving…" : "Save changes"}
+              </Button>
+            </div>
           </form>
         )}
       </section>
 
-      {/* Password */}
-      <section className="card p-5 space-y-3">
-        <h3 className="text-[15px] font-semibold">Password</h3>
-        <form onSubmit={updatePassword} className="space-y-3">
-          <div>
-            <label htmlFor="currentPassword" className="mb-1.5 block text-[13px] font-medium">Current password</label>
-            <Input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" required />
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className="card space-y-5 p-5 sm:p-6">
+          <SectionHeading
+            icon={Sparkles}
+            title="Appearance"
+            description="Choose a theme that feels comfortable on this device."
+          />
+          <div className="grid grid-cols-3 gap-2">
+            {themeOptions.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={mode === id}
+                onClick={() => setMode(id)}
+                className={cn(
+                  "flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border-2 p-3 text-[13px] font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                  mode === id
+                    ? "border-primary bg-primary/15 text-foreground shadow-clay"
+                    : "border-border bg-surface text-muted-foreground hover:bg-elevated",
+                )}
+              >
+                <Icon className="h-5 w-5" />
+                {label}
+                {mode === id && <span className="text-[10px] font-extrabold uppercase tracking-wide text-primary-foreground">Selected</span>}
+              </button>
+            ))}
           </div>
-          <div>
-            <label htmlFor="newPassword" className="mb-1.5 block text-[13px] font-medium">New password</label>
-            <Input id="newPassword" name="newPassword" type="password" autoComplete="new-password" minLength={6} required />
-          </div>
-          <div>
-            <label htmlFor="confirmPassword" className="mb-1.5 block text-[13px] font-medium">Confirm new password</label>
-            <Input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" minLength={6} required />
-          </div>
-          {passwordError && <p role="alert" className="rounded-clay bg-danger/25 px-3 py-2 text-[12px] text-danger-foreground shadow-clay-inset">{passwordError}</p>}
-          <Button type="submit" size="sm" variant="secondary" disabled={passwordSaving}>
-            {passwordSaving ? "Updating…" : "Update password"}
-          </Button>
-        </form>
-      </section>
+        </section>
 
-      {/* Appearance */}
-      <section className="card p-5 space-y-3">
-        <h3 className="text-[15px] font-semibold">Appearance</h3>
-        <p className="text-[12.5px] text-muted-foreground">Choose your preferred theme</p>
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { id: "light", label: "Light", icon: Sun },
-            { id: "dark", label: "Dark", icon: Moon },
-            { id: "system", label: "System", icon: Monitor },
-          ].map((opt) => (
-            <button
-              key={opt.id}
-              onClick={() => setMode(opt.id as any)}
-              className={cn(
-                "flex flex-col items-center gap-1.5 rounded-md border p-3 text-[13px] transition-colors",
-                mode === opt.id ? "border-primary bg-primary/5 text-primary" : "hover:bg-elevated",
-              )}
-            >
-              <opt.icon className="h-4 w-4" />
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* Reminders */}
-      <section className="card space-y-3 p-5">
-        <div>
-          <h3 className="text-[15px] font-semibold">Task reminders</h3>
-          <p className="mt-1 text-[12.5px] text-muted-foreground">
-            Due-date reminders arrive at 9:00 AM on the due date. Set a custom date and time when creating or editing a task.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-[12px] text-muted-foreground" role="status">
-            {notificationPermission === "unsupported"
-              ? "Notifications are not supported by this browser."
-              : notificationPermission === "denied"
-                ? "Notifications are blocked in browser settings."
-                : notificationsEnabled
-                  ? "Notifications are enabled."
-                  : "Notifications are currently off."}
-            {" "}TaskFlow must be open for reminders to be checked.
-          </p>
+        <section className="card space-y-5 p-5 sm:p-6">
+          <SectionHeading
+            icon={Bell}
+            title="Task reminders"
+            description="Get browser notifications for task due dates and custom reminders."
+          />
+          <div className="rounded-2xl border border-border bg-elevated/60 p-4">
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-primary/15 p-2 text-primary-foreground">
+                {notificationsEnabled ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold">
+                  {notificationPermission === "unsupported"
+                    ? "Browser notifications unavailable"
+                    : notificationPermission === "denied"
+                      ? "Permission blocked in browser"
+                      : notificationsEnabled
+                        ? "Reminders are enabled"
+                        : "Reminders are turned off"}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Due-date reminders arrive at 9:00 AM on the due date. TaskFlow must be open to check reminders.
+                </p>
+              </div>
+            </div>
+          </div>
           <Button
             type="button"
             size="sm"
@@ -328,30 +474,154 @@ export const SettingsPage = () => {
             aria-pressed={notificationsEnabled}
           >
             {notificationsEnabled ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
-            {notificationsEnabled ? "Turn off" : "Enable notifications"}
+            {notificationsEnabled ? "Turn off reminders" : "Enable reminders"}
           </Button>
-        </div>
-      </section>
+        </section>
+      </div>
 
-      {/* Logout */}
-      <section className="card p-5">
-        <h3 className="mb-1 text-[15px] font-semibold">Session</h3>
-        <p className="mb-3 text-[12.5px] text-muted-foreground">Sign out of your TaskFlow account</p>
-        <Button
-          variant="danger"
-          size="sm"
-          onClick={async () => {
-            const { error } = await supabase.auth.signOut();
-            if (error) {
-              toast.error(error.message);
-              return;
-            }
-            navigate("/login", { replace: true });
-          }}
-        >
-          <LogOut className="h-3.5 w-3.5" /> Sign out
-        </Button>
-      </section>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className="card space-y-5 p-5 sm:p-6">
+          <SectionHeading
+            icon={ShieldCheck}
+            title="Security"
+            description="Change your password to keep your account protected."
+          />
+          <form onSubmit={updatePassword} className="space-y-3">
+            <div>
+              <label htmlFor="currentPassword" className="mb-1.5 block text-[13px] font-semibold">Current password</label>
+              <Input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" required />
+            </div>
+            <div>
+              <label htmlFor="newPassword" className="mb-1.5 block text-[13px] font-semibold">New password</label>
+              <Input id="newPassword" name="newPassword" type="password" autoComplete="new-password" minLength={6} required />
+            </div>
+            <div>
+              <label htmlFor="confirmPassword" className="mb-1.5 block text-[13px] font-semibold">Confirm new password</label>
+              <Input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" minLength={6} required />
+            </div>
+            {passwordError && (
+              <p role="alert" className="rounded-clay bg-danger/25 px-3 py-2 text-[12px] text-danger-foreground shadow-clay-inset">
+                {passwordError}
+              </p>
+            )}
+            <Button type="submit" size="sm" variant="secondary" disabled={passwordSaving}>
+              {passwordSaving ? "Updating…" : "Update password"}
+            </Button>
+          </form>
+        </section>
+
+        <section className="card space-y-5 p-5 sm:p-6">
+          <SectionHeading
+            icon={Database}
+            title="Data & privacy"
+            description="Keep a portable copy of your TaskFlow tasks and projects."
+          />
+          <div className="rounded-2xl border border-border bg-elevated/60 p-4">
+            <p className="text-sm font-bold">Personal data backup</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Download a JSON file containing your tasks and projects. The file stays on your device and can be kept as a backup.
+            </p>
+            <p className="mt-3 text-[11px] font-semibold text-muted-foreground">
+              {tasksLoading || projectsLoading
+                ? "Loading your data…"
+                : tasksError || projectsError
+                  ? "Data could not be loaded."
+                  : `${tasks?.length ?? 0} tasks · ${projects?.length ?? 0} projects`}
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={exportBackup}
+            disabled={tasksLoading || projectsLoading}
+          >
+            <Download className="h-4 w-4" />
+            Export data
+          </Button>
+        </section>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className="card space-y-5 p-5 sm:p-6">
+          <SectionHeading
+            icon={Monitor}
+            title="Technical details"
+            description="Useful environment information for reminders and troubleshooting."
+          />
+          <dl className="divide-y divide-border rounded-2xl border border-border bg-elevated/50 px-4">
+            <div className="flex items-center justify-between gap-4 py-3">
+              <dt className="text-xs font-semibold text-muted-foreground">Network</dt>
+              <dd className={cn("inline-flex items-center gap-1.5 text-xs font-bold", isOnline ? "text-success-foreground" : "text-danger-foreground")}>
+                {isOnline ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+                {isOnline ? "Online" : "Offline"}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-3">
+              <dt className="text-xs font-semibold text-muted-foreground">Time zone</dt>
+              <dd className="max-w-[65%] truncate text-right text-xs font-bold" title={timeZone}>{timeZone}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-3">
+              <dt className="text-xs font-semibold text-muted-foreground">Browser language</dt>
+              <dd className="text-xs font-bold">{language}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-3">
+              <dt className="text-xs font-semibold text-muted-foreground">Last sign-in</dt>
+              <dd className="text-right text-xs font-bold">{lastSignIn}</dd>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 py-3">
+              <dt className="text-xs font-semibold text-muted-foreground">Account ID</dt>
+              <dd className="flex min-w-0 items-center gap-2">
+                <code className="max-w-40 truncate rounded-lg bg-surface px-2 py-1 text-[10px]" title={session?.user.id}>
+                  {session?.user.id || "Not available"}
+                </code>
+                <Button type="button" size="icon" variant="ghost" aria-label="Copy account ID" onClick={copyAccountId}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className="card flex flex-col justify-between gap-5 p-5 sm:p-6">
+          <div className="space-y-5">
+            <SectionHeading
+              icon={ShieldCheck}
+              title="Current session"
+              description="You are signed in to this TaskFlow account on this device."
+            />
+            <div className="flex items-center gap-3 rounded-2xl border border-border bg-elevated/60 p-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary-foreground">
+                <UserRound className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold">{profileName}</p>
+                <p className="truncate text-xs text-muted-foreground">{email}</p>
+              </div>
+            </div>
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Wifi className="h-4 w-4 shrink-0" />
+              Sign out when using a shared or public device.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            className="self-start"
+            onClick={async () => {
+              const { error } = await supabase.auth.signOut();
+              if (error) {
+                toast.error(error.message);
+                return;
+              }
+              navigate("/login", { replace: true });
+            }}
+          >
+            <LogOut className="h-4 w-4" /> Sign out
+          </Button>
+        </section>
+      </div>
     </div>
   );
 };
