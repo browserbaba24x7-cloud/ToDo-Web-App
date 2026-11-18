@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { format } from "date-fns";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ const schema = z.object({
   priority: z.enum(["low", "medium", "high", "urgent"]),
   status: z.enum(["todo", "in_progress", "done"]),
   dueDate: z.string().optional(),
+  reminderAt: z.string().optional(),
   projectId: z.string().optional(),
   labels: z.string().optional(),
 });
@@ -41,7 +43,7 @@ export const TaskFormDialog = ({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { title: "", priority: "medium", status: "todo", labels: "" },
+    defaultValues: { title: "", priority: "medium", status: "todo", reminderAt: "", labels: "" },
   });
 
   useEffect(() => {
@@ -53,11 +55,12 @@ export const TaskFormDialog = ({
           priority: editing.priority,
           status: editing.status,
           dueDate: editing.dueDate ? editing.dueDate.slice(0, 10) : "",
+          reminderAt: editing.reminderAt ? format(new Date(editing.reminderAt), "yyyy-MM-dd'T'HH:mm") : "",
           projectId: editing.projectId || "",
           labels: editing.labels.join(", "),
         });
       } else {
-        form.reset({ title: "", priority: "medium", status: "todo", labels: "" });
+        form.reset({ title: "", priority: "medium", status: "todo", reminderAt: "", labels: "" });
       }
     }
   }, [open, editing]);
@@ -70,6 +73,7 @@ export const TaskFormDialog = ({
       priority: values.priority as Priority,
       status: values.status as TaskStatus,
       dueDate: values.dueDate ? new Date(values.dueDate).toISOString() : undefined,
+      reminderAt: values.reminderAt ? new Date(values.reminderAt).toISOString() : undefined,
       projectId: values.projectId || undefined,
       labels: values.labels ? values.labels.split(",").map((s) => s.trim()).filter(Boolean) : [],
       createdAt: editing?.createdAt || new Date().toISOString(),
@@ -157,6 +161,14 @@ export const TaskFormDialog = ({
                 ))}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-[13px] font-medium">Custom reminder</label>
+            <Input type="datetime-local" {...form.register("reminderAt")} />
+            <p className="mt-1 text-[11.5px] text-muted-foreground">
+              A browser notification will appear at this time when notifications are enabled.
+            </p>
           </div>
 
           <div>

@@ -8,6 +8,7 @@ export interface Task {
   status: TaskStatus;
   priority: Priority;
   dueDate?: string; // ISO string
+  reminderAt?: string; // ISO string
   projectId?: string;
   labels: string[];
   createdAt: string;

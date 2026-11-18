@@ -16,6 +16,7 @@ const mapTask = (row: TaskRow): Task => ({
   status: row.status,
   priority: row.priority,
   dueDate: row.due_date ?? undefined,
+  reminderAt: row.reminder_at ?? undefined,
   projectId: row.project_id ?? undefined,
   labels: row.labels ?? [],
   createdAt: row.created_at,
@@ -44,6 +45,7 @@ const toTaskInsert = (task: Task, userId: string): TaskInsert => ({
   status: task.status,
   priority: task.priority,
   due_date: task.dueDate ?? null,
+  reminder_at: task.reminderAt ?? null,
   project_id: task.projectId ?? null,
   labels: task.labels,
   completed_at: task.completedAt ?? null,
@@ -56,6 +58,7 @@ const toTaskUpdate = (patch: Partial<Task>): TaskUpdate => {
   if (patch.status !== undefined) update.status = patch.status;
   if (patch.priority !== undefined) update.priority = patch.priority;
   if ("dueDate" in patch) update.due_date = patch.dueDate ?? null;
+  if ("reminderAt" in patch) update.reminder_at = patch.reminderAt ?? null;
   if ("projectId" in patch) update.project_id = patch.projectId ?? null;
   if (patch.labels !== undefined) update.labels = patch.labels;
   if ("completedAt" in patch) update.completed_at = patch.completedAt ?? null;

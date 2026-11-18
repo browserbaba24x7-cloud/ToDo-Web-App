@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { useDroppable } from "@dnd-kit/core";
 import {
-  LayoutDashboard, Inbox, Sun, CalendarDays, Plus, Settings, HelpCircle,
+  LayoutDashboard, Inbox, Sun, CalendarDays, Plus, Settings, HelpCircle, Target,
   ChevronDown, CheckCircle2, Sparkles, SunMoon, Moon, Monitor,
 } from "lucide-react";
 import { useProjects } from "@/lib/store/project-store";
@@ -47,6 +47,7 @@ const mainNav = [
   { to: "/app/inbox", label: "Inbox", icon: Inbox },
   { to: "/app/today", label: "Today", icon: Sun },
   { to: "/app/upcoming", label: "Upcoming", icon: CalendarDays },
+  { to: "/app/focus", label: "Focus", icon: Target },
 ];
 
 export const Sidebar = ({ onClose }: { onClose?: () => void }) => {

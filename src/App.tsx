@@ -10,6 +10,7 @@ import { UpcomingPage } from "./features/upcoming/upcoming-page";
 import { ProjectsPage } from "./features/projects/projects-page";
 import { ProjectDetailsPage } from "./features/projects/project-details-page";
 import { SettingsPage } from "./features/settings/settings-page";
+import { FocusPage } from "./features/focus/focus-page";
 import { LoginPage } from "./features/auth/login-page";
 import { SignupPage } from "./features/auth/signup-page";
 import { ForgotPasswordPage } from "./features/auth/forgot-password-page";
@@ -58,6 +59,7 @@ export default function App() {
               <Route path="projects" element={<ProjectsPage />} />
               <Route path="projects/:projectId" element={<ProjectDetailsPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="focus" element={<FocusPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/app/dashboard" replace />} />

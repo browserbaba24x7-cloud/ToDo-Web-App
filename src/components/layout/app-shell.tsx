@@ -16,6 +16,7 @@ import { useUIStore } from "@/lib/store/ui-store";
 import { useTasks, useUpdateTask } from "@/lib/store/task-store";
 import { useProjects } from "@/lib/store/project-store";
 import { toast, Toaster } from "sonner";
+import { useTaskReminders } from "@/lib/hooks/use-task-reminders";
 
 const routeTitles: Record<string, string> = {
   "/app/dashboard": "Dashboard",
@@ -51,6 +52,7 @@ export const AppShell = () => {
   const location = useLocation();
   const [activeTaskId, setActiveTaskId] = useState<string>();
   const { data: tasks = [] } = useTasks();
+  useTaskReminders(tasks);
   const { data: projects = [] } = useProjects();
   const updateTask = useUpdateTask();
   const sensors = useSensors(
@@ -68,6 +70,7 @@ export const AppShell = () => {
   const title =
     routeTitles[location.pathname] ||
     (location.pathname.startsWith("/app/projects/") ? "Project" : "TaskFlow");
+  const isFocusPage = location.pathname === "/app/focus";
   const draggedTask = tasks.find((task) => task.id === activeTaskId);
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -121,12 +124,14 @@ export const AppShell = () => {
     >
       <div className="flex h-screen overflow-hidden bg-background">
         {/* Desktop sidebar */}
-        <div className="hidden md:block">
-          <Sidebar />
-        </div>
+        {!isFocusPage && (
+          <div className="hidden md:block">
+            <Sidebar />
+          </div>
+        )}
 
         {/* Mobile sidebar */}
-        {mobileNavOpen && (
+        {!isFocusPage && mobileNavOpen && (
           <>
             <div
               className="fixed inset-0 z-40 bg-[#3D2E28]/40 backdrop-blur-sm md:hidden"
@@ -139,7 +144,7 @@ export const AppShell = () => {
         )}
 
         <div className="flex flex-1 flex-col overflow-hidden">
-          <Header
+          {!isFocusPage && <Header
             title={title}
             onSelectTask={(taskId) => {
               setEditTaskId(taskId);
@@ -149,9 +154,9 @@ export const AppShell = () => {
               setEditTaskId(undefined);
               setTaskModalOpen(true);
             }}
-          />
+          />}
           <main className="flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-7xl p-4 md:p-6 lg:p-8">
+            <div className={isFocusPage ? "min-h-full" : "mx-auto max-w-7xl p-4 md:p-6 lg:p-8"}>
               <Outlet />
             </div>
           </main>

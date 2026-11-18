@@ -47,6 +47,7 @@ export interface Database {
           status: TaskStatus;
           priority: Priority;
           due_date: string | null;
+          reminder_at: string | null;
           project_id: string | null;
           labels: string[];
           completed_at: string | null;
@@ -60,6 +61,7 @@ export interface Database {
           status?: TaskStatus;
           priority?: Priority;
           due_date?: string | null;
+          reminder_at?: string | null;
           project_id?: string | null;
           labels?: string[];
           completed_at?: string | null;
@@ -73,6 +75,7 @@ export interface Database {
           status?: TaskStatus;
           priority?: Priority;
           due_date?: string | null;
+          reminder_at?: string | null;
           project_id?: string | null;
           labels?: string[];
           completed_at?: string | null;

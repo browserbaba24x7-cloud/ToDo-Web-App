@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Monitor, Moon, Sun } from "lucide-react";
+import { Bell, BellOff, LogOut, Monitor, Moon, Sun } from "lucide-react";
 import { useThemeStore } from "@/lib/store/theme-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth/auth-context";
+import { taskNotificationSettingsEvent } from "@/lib/hooks/use-task-reminders";
 
 export const SettingsPage = () => {
   const { mode, setMode } = useThemeStore();
@@ -18,6 +19,12 @@ export const SettingsPage = () => {
   const [profileError, setProfileError] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordError, setPasswordError] = useState("");
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    () => localStorage.getItem("taskflow_notifications_enabled") === "true",
+  );
+  const [notificationPermission, setNotificationPermission] = useState<
+    NotificationPermission | "unsupported"
+  >(() => ("Notification" in window ? Notification.permission : "unsupported"));
   const accountName =
     (session?.user.user_metadata.full_name as string | undefined) ||
     (session?.user.user_metadata.name as string | undefined) ||
@@ -32,6 +39,44 @@ export const SettingsPage = () => {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  const toggleNotifications = async () => {
+    if (notificationsEnabled) {
+      localStorage.setItem("taskflow_notifications_enabled", "false");
+      setNotificationsEnabled(false);
+      window.dispatchEvent(new Event(taskNotificationSettingsEvent));
+      toast.info("Task notifications turned off.");
+      return;
+    }
+
+    if (!("Notification" in window)) {
+      setNotificationPermission("unsupported");
+      toast.error("This browser does not support notifications.");
+      return;
+    }
+
+    let permission: NotificationPermission;
+    try {
+      permission = await Notification.requestPermission();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not request notification permission.");
+      return;
+    }
+    setNotificationPermission(permission);
+    if (permission !== "granted") {
+      toast.error(
+        permission === "denied"
+          ? "Notifications are blocked in your browser settings."
+          : "Notification permission was not granted.",
+      );
+      return;
+    }
+
+    localStorage.setItem("taskflow_notifications_enabled", "true");
+    setNotificationsEnabled(true);
+    window.dispatchEvent(new Event(taskNotificationSettingsEvent));
+    toast.success("Task notifications turned on.");
+  };
 
   const saveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -252,6 +297,39 @@ export const SettingsPage = () => {
               {opt.label}
             </button>
           ))}
+        </div>
+      </section>
+
+      {/* Reminders */}
+      <section className="card space-y-3 p-5">
+        <div>
+          <h3 className="text-[15px] font-semibold">Task reminders</h3>
+          <p className="mt-1 text-[12.5px] text-muted-foreground">
+            Due-date reminders arrive at 9:00 AM on the due date. Set a custom date and time when creating or editing a task.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[12px] text-muted-foreground" role="status">
+            {notificationPermission === "unsupported"
+              ? "Notifications are not supported by this browser."
+              : notificationPermission === "denied"
+                ? "Notifications are blocked in browser settings."
+                : notificationsEnabled
+                  ? "Notifications are enabled."
+                  : "Notifications are currently off."}
+            {" "}TaskFlow must be open for reminders to be checked.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant={notificationsEnabled ? "secondary" : "primary"}
+            onClick={toggleNotifications}
+            disabled={notificationPermission === "unsupported"}
+            aria-pressed={notificationsEnabled}
+          >
+            {notificationsEnabled ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+            {notificationsEnabled ? "Turn off" : "Enable notifications"}
+          </Button>
         </div>
       </section>
 
