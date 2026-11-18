@@ -101,7 +101,14 @@ const FocusTimerCard = ({
   return (
     <article className="card flex min-h-[310px] flex-col p-5">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="min-w-0 flex-1 truncate text-sm font-bold">{timer.name}</h2>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="min-w-0 flex-1 truncate rounded text-left text-sm font-bold hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          aria-label={`Edit ${timer.name} name and duration`}
+        >
+          {timer.name}
+        </button>
         {isEditing && (
           <div className="flex shrink-0 items-center gap-1">
             <button
@@ -125,11 +132,14 @@ const FocusTimerCard = ({
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center py-4">
-        <div
-          className="grid h-48 w-48 place-items-center rounded-full p-3"
+        <button
+          type="button"
+          onClick={onEdit}
+          className="grid h-48 w-48 place-items-center rounded-full p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           style={{
             background: `conic-gradient(hsl(var(--primary)) 0deg ${angle}, hsl(var(--elevated)) ${angle} 360deg)`,
           }}
+          aria-label={`Edit ${timer.name} duration and name`}
         >
           <div className="grid h-full w-full place-items-center rounded-full bg-surface shadow-clay-inset">
             <p
@@ -140,7 +150,7 @@ const FocusTimerCard = ({
               {formatTime(secondsLeft)}
             </p>
           </div>
-        </div>
+        </button>
       </div>
 
       <div className="flex items-center justify-center gap-2">
@@ -240,6 +250,7 @@ export const FocusPage = () => {
 
   const deleteTimer = (timer: FocusTimer) => {
     if (saveTimers(timers.filter((item) => item.id !== timer.id))) {
+      if (editingTimer?.id === timer.id) setDialogOpen(false);
       toast.success(`${timer.name} removed.`);
     }
   };
@@ -333,6 +344,16 @@ export const FocusPage = () => {
             </div>
             {formError && <p role="alert" className="text-[12px] text-danger-foreground">{formError}</p>}
             <div className="flex justify-end gap-2 pt-2">
+              {editingTimer && (
+                <Button
+                  type="button"
+                  variant="danger"
+                  className="mr-auto"
+                  onClick={() => deleteTimer(editingTimer)}
+                >
+                  <Trash2 className="h-4 w-4" /> Delete
+                </Button>
+              )}
               <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)}>Cancel</Button>
               <Button type="submit">{editingTimer ? "Save timer" : "Add timer"}</Button>
             </div>
