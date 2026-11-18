@@ -8,7 +8,7 @@ import { toast } from "sonner";
 type FocusMode = "task" | "pomodoro";
 type TimerPhase = "focus" | "break";
 
-const FOCUS_SECONDS = 25 * 60;
+const DEFAULT_FOCUS_MINUTES = 25;
 const BREAK_SECONDS = 5 * 60;
 
 const formatTime = (seconds: number) => {
@@ -25,9 +25,14 @@ export const FocusPage = () => {
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [mode, setMode] = useState<FocusMode>("pomodoro");
   const [phase, setPhase] = useState<TimerPhase>("focus");
-  const [secondsLeft, setSecondsLeft] = useState(FOCUS_SECONDS);
+  const [focusMinutes, setFocusMinutes] = useState(DEFAULT_FOCUS_MINUTES);
+  const [focusMinutesInput, setFocusMinutesInput] = useState(String(DEFAULT_FOCUS_MINUTES));
+  const [secondsLeft, setSecondsLeft] = useState(DEFAULT_FOCUS_MINUTES * 60);
   const [isRunning, setIsRunning] = useState(false);
   const selectedTask = availableTasks.find((task) => task.id === selectedTaskId);
+  const validFocusDuration = Number.isInteger(Number(focusMinutesInput))
+    && Number(focusMinutesInput) >= 1
+    && Number(focusMinutesInput) <= 180;
 
   useEffect(() => {
     if (!isRunning) return;
@@ -36,19 +41,19 @@ export const FocusPage = () => {
         setIsRunning(false);
         const nextPhase = phase === "focus" ? "break" : "focus";
         setPhase(nextPhase);
-        setSecondsLeft(nextPhase === "focus" ? FOCUS_SECONDS : BREAK_SECONDS);
+        setSecondsLeft(nextPhase === "focus" ? focusMinutes * 60 : BREAK_SECONDS);
         toast.success(phase === "focus" ? "Focus session complete. Take a break!" : "Break complete. Ready to focus?");
       } else {
         setSecondsLeft((remaining) => remaining - 1);
       }
     }, 1000);
     return () => window.clearTimeout(timeoutId);
-  }, [isRunning, secondsLeft, phase]);
+  }, [isRunning, secondsLeft, phase, focusMinutes]);
 
   const resetTimer = () => {
     setIsRunning(false);
     setPhase("focus");
-    setSecondsLeft(FOCUS_SECONDS);
+    setSecondsLeft(focusMinutes * 60);
   };
 
   const completeTask = () => {
@@ -102,7 +107,7 @@ export const FocusPage = () => {
               setMode("pomodoro");
               setIsRunning(false);
               setPhase("focus");
-              setSecondsLeft(FOCUS_SECONDS);
+              setSecondsLeft(focusMinutes * 60);
             }}
             className={`rounded-clay px-3 py-2.5 text-sm font-semibold ${mode === "pomodoro" ? "bg-surface text-foreground shadow-clay" : "text-muted-foreground"}`}
             aria-pressed={mode === "pomodoro"}
@@ -122,7 +127,7 @@ export const FocusPage = () => {
                 setSelectedTaskId(event.target.value);
                 setIsRunning(false);
                 setPhase("focus");
-                setSecondsLeft(FOCUS_SECONDS);
+                setSecondsLeft(focusMinutes * 60);
               }}
             >
               <option value="">Choose a task…</option>
@@ -147,15 +152,46 @@ export const FocusPage = () => {
 
           {mode === "pomodoro" && (
             <div className="py-2 text-center">
+              <div className="mx-auto mb-4 max-w-[220px] text-left">
+                <label htmlFor="focus-duration" className="mb-1.5 block text-sm font-semibold">
+                  Focus duration (minutes)
+                </label>
+                <input
+                  id="focus-duration"
+                  className="input"
+                  type="number"
+                  min={1}
+                  max={180}
+                  step={1}
+                  value={focusMinutesInput}
+                  disabled={isRunning}
+                  aria-describedby="focus-duration-hint"
+                  aria-invalid={!validFocusDuration}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setFocusMinutesInput(value);
+                    const minutes = Number(value);
+                    if (Number.isInteger(minutes) && minutes >= 1 && minutes <= 180) {
+                      setFocusMinutes(minutes);
+                      setPhase("focus");
+                      setSecondsLeft(minutes * 60);
+                    }
+                  }}
+                  onBlur={() => setFocusMinutesInput(String(focusMinutes))}
+                />
+                <p id="focus-duration-hint" className="mt-1 text-[11.5px] text-muted-foreground">
+                  Choose between 1 and 180 minutes. Pause or reset to change it.
+                </p>
+              </div>
               <div className="mb-2 flex items-center justify-center gap-2 text-sm font-semibold text-muted-foreground">
                 <Timer className="h-4 w-4" />
-                {phase === "focus" ? "Focus session · 25 minutes" : "Break · 5 minutes"}
+                {phase === "focus" ? `Focus session · ${focusMinutes} minutes` : "Break · 5 minutes"}
               </div>
               <p className="font-mono text-6xl font-bold tabular-nums tracking-tight" role="timer" aria-label={`${formatTime(secondsLeft)} remaining`}>
                 {formatTime(secondsLeft)}
               </p>
               <div className="mt-5 flex justify-center gap-2">
-                <Button onClick={() => setIsRunning((running) => !running)} disabled={!selectedTask}>
+                <Button onClick={() => setIsRunning((running) => !running)} disabled={!selectedTask || !validFocusDuration}>
                   {isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                   {isRunning ? "Pause" : phase === "focus" ? "Start focus" : "Start break"}
                 </Button>

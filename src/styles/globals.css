@@ -155,6 +155,16 @@
       var(--shadow-clay-inset),
       0 0 0 3px hsl(var(--primary) / 0.28);
   }
+
+  #focus-duration {
+    -moz-appearance: textfield;
+  }
+
+  #focus-duration::-webkit-inner-spin-button,
+  #focus-duration::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 }
 
 .card:hover {
